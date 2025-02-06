@@ -123,7 +123,7 @@ const lonFilter = new KalmanFilter();
 
     // Create the GeoJSON layers
     const buildingsLayer = new GeoJSONLayer({
-        url: "./building.geojson",
+        url: "./Building.geojson",
         renderer: buildingRenderer,
         title: "Buildings"
     });
