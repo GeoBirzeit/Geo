@@ -300,29 +300,23 @@ function updateStatusIndicator(message, type = 'info') {
 
 // Enhanced error handling function
 function handleGeolocationError(error) {
-    console.warn('Geolocation error:', error);
-    
-    if (error.code === error.POSITION_UNAVAILABLE && !isRecovering) {
-        isRecovering = true;
-        
-        // Use last known position if available
-        if (positionHistory.length > 0) {
-            const lastPosition = positionHistory[positionHistory.length - 1];
-            updateUserLocation(lastPosition, view);
-        }
-        
-        // Clear existing recovery timeout
-        if (recoveryTimeout) {
-            clearTimeout(recoveryTimeout);
-        }
-        
-        // Attempt recovery after a short delay
-        recoveryTimeout = setTimeout(() => {
-            restartTracking();
-            isRecovering = false;
-        }, 2000);
+    let errorMessage = 'Location error: ';
+    switch(error.code) {
+        case error.PERMISSION_DENIED:
+            errorMessage += 'Location permission denied';
+            break;
+        case error.POSITION_UNAVAILABLE:
+            errorMessage += 'Location information unavailable';
+            break;
+        case error.TIMEOUT:
+            errorMessage += 'Location request timed out';
+            break;
+        default:
+            errorMessage += error.message;
     }
+    updateStatusIndicator(errorMessage, 'error');
 }
+
 
 // Function to restart tracking
 function restartTracking() {
@@ -391,99 +385,68 @@ function restartTracking() {
     }
 
     
- // Function to update user location with mobile-specific enhancements
-function updateUserLocation(position, view) {
-    const debugOverlay = document.getElementById('debugOverlay') || createDebugOverlay();
+    function updateUserLocation(position, view) {
+        const debugOverlay = document.getElementById('debugOverlay') || createDebugOverlay();
+        
+        debugOverlay.innerHTML = `
+            Lat: ${position.coords.latitude.toFixed(6)}<br>
+            Lon: ${position.coords.longitude.toFixed(6)}<br>
+            Accuracy: ${position.coords.accuracy.toFixed(1)}m<br>
+            Timestamp: ${new Date(position.timestamp).toLocaleTimeString()}
+        `;
     
-    // Debug output
-    debugOverlay.innerHTML = `
-        Lat: ${position.coords.latitude.toFixed(6)}<br>
-        Lon: ${position.coords.longitude.toFixed(6)}<br>
-        Accuracy: ${position.coords.accuracy.toFixed(1)}m<br>
-        Timestamp: ${new Date(position.timestamp).toLocaleTimeString()}
-    `;
-
-    // Ensure GraphicsLayer exists
-    if (!userGraphicsLayer) {
-        userGraphicsLayer = new GraphicsLayer({
-            elevationInfo: { // Add elevation info to ensure marker appears above ground
-                mode: "relative-to-ground",
-                offset: 5 // 5 meters above ground
+        if (!userGraphicsLayer) {
+            userGraphicsLayer = new GraphicsLayer();
+            view.map.add(userGraphicsLayer);
+        }
+    
+        userGraphicsLayer.removeAll();
+    
+        const point = new Point({
+            longitude: position.coords.longitude,
+            latitude: position.coords.latitude,
+            spatialReference: { wkid: 4326 }
+        });
+    
+        // Enhanced visibility for mobile
+        const userGraphic = new Graphic({
+            geometry: point,
+            symbol: {
+                type: "simple-marker",
+                style: "circle",
+                color: [0, 119, 255, 0.8],
+                size: "30px",  // Increased size for better mobile visibility
+                outline: {
+                    color: [255, 255, 255],
+                    width: 4   // Thicker outline
+                }
             }
         });
-        view.map.add(userGraphicsLayer);
-    }
-
-    // Clear existing graphics
-    userGraphicsLayer.removeAll();
-
-    // Create point for user location
-    const point = new Point({
-        longitude: position.coords.longitude,
-        latitude: position.coords.latitude,
-        spatialReference: { wkid: 4326 }
-    });
-
-    // Enhanced user location marker for better mobile visibility
-    const userGraphic = new Graphic({
-        geometry: point,
-        symbol: {
-            type: "point-3d",
-            symbolLayers: [{
-                type: "object",
-                width: 15,
-                height: 15,
-                depth: 15,
-                resource: { primitive: "sphere" },
-                material: { color: [0, 119, 255, 0.8] }
-            }],
-            outline: {
-                color: [255, 255, 255],
-                width: 2
+    
+        // Larger accuracy circle for better visibility
+        const accuracyGraphic = new Graphic({
+            geometry: point,
+            symbol: {
+                type: "simple-marker",
+                style: "circle",
+                color: [0, 119, 255, 0.2],
+                size: `${Math.max(position.coords.accuracy, 20)}m`, // Minimum size of 20m for visibility
+                outline: {
+                    color: [0, 119, 255, 0.5],
+                    width: 2
+                }
             }
-        }
-    });
-
-    // Create pulsing effect circle
-    const pulsingCircle = new Graphic({
-        geometry: point,
-        symbol: {
-            type: "point-3d",
-            symbolLayers: [{
-                type: "object",
-                width: position.coords.accuracy / 2,
-                height: position.coords.accuracy / 2,
-                depth: 1,
-                resource: { primitive: "cylinder" },
-                material: { color: [0, 119, 255, 0.2] }
-            }]
-        }
-    });
-
-    // Add graphics to layer
-    userGraphicsLayer.addMany([pulsingCircle, userGraphic]);
-
-    // Enhanced camera positioning for mobile
-    const cameraOptions = {
-        target: point,
-        zoom: view.zoom,
-        tilt: 45, // Angled view for better visibility
-        heading: 0,
-        position: {
-            longitude: position.coords.longitude,
-            latitude: position.coords.latitude - 0.0002, // Slight offset for better visibility
-            z: 100 // Higher elevation for better overview
-        }
-    };
-
-    // Smooth camera transition
-    view.goTo(cameraOptions, {
-        duration: 500,
-        easing: "ease-out"
-    }).catch((error) => {
-        console.warn("Camera transition failed:", error);
-    });
-}
+        });
+    
+        userGraphicsLayer.addMany([accuracyGraphic, userGraphic]);
+    
+        // Center view on user location with animation
+        view.goTo({
+            target: point,
+            zoom: view.zoom,
+            duration: 500
+        }, { animate: true });
+    }
 
     function updateRouteForPosition(position, view, edgesData, nodesData, endNodeId) {
         if (!position || !edgesData || !nodesData || !endNodeId || !currentPath) {
@@ -609,8 +572,9 @@ function displayUpdatedRoute(path, startPoint, view) {
 
 // Function to start real-time tracking
 function startRealTimeTracking(view, edgesData, nodesData, endNodeId) {
-    console.log('Starting real-time tracking with mobile enhancements...');
+    console.log('Starting real-time tracking...');
     
+    // Clear existing tracking if any
     if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
@@ -621,45 +585,85 @@ function startRealTimeTracking(view, edgesData, nodesData, endNodeId) {
 
     const options = {
         enableHighAccuracy: true,
-        timeout: 5000, // Reduced timeout for faster updates
+        timeout: 5000,        // Reduced timeout for faster feedback
         maximumAge: 0
     };
 
-    // Add mobile-specific status updates
-    updateStatusIndicator('Initializing location tracking...', 'info');
+    // First check if geolocation is available
+    if (!navigator.geolocation) {
+        updateStatusIndicator('Geolocation is not supported by your browser', 'error');
+        return;
+    }
 
+    // Handle permissions explicitly
     navigator.permissions.query({ name: 'geolocation' }).then(function(permissionStatus) {
+        debugOverlay.innerHTML += `<br>Location permission: ${permissionStatus.state}`;
+        
         if (permissionStatus.state === 'granted') {
-            // Get initial position with enhanced error handling
+            startTracking();
+        } else if (permissionStatus.state === 'prompt') {
+            updateStatusIndicator('Waiting for location permission...', 'warning');
+            // Request location explicitly to trigger the permission prompt
             navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    console.log('Initial mobile position received:', position);
-                    updateUserLocation(position, view);
-                    updateStatusIndicator('Location tracking active', 'success');
-                    
-                    // Start continuous tracking with more frequent updates
-                    watchId = navigator.geolocation.watchPosition(
-                        (pos) => {
-                            updateUserLocation(pos, view);
-                            if (edgesData && nodesData && endNodeId) {
-                                updateRouteForPosition(pos, view, edgesData, nodesData, endNodeId);
-                            }
-                        },
-                        handleGeolocationError,
-                        options
-                    );
+                () => {
+                    updateStatusIndicator('Permission granted, starting tracking...', 'success');
+                    startTracking();
                 },
                 (error) => {
-                    console.error('Initial mobile position error:', error);
-                    handleGeolocationError(error);
+                    console.error('Permission error:', error);
+                    updateStatusIndicator('Location access denied. Please enable location services.', 'error');
                 },
                 options
             );
         } else {
-            updateStatusIndicator('Please enable location access in your device settings', 'warning');
+            updateStatusIndicator('Location access denied. Please enable location services in your settings.', 'error');
         }
+
+        // Listen for permission changes
+        permissionStatus.addEventListener('change', function() {
+            if (this.state === 'granted') {
+                startTracking();
+            } else {
+                stopRealTimeTracking();
+                updateStatusIndicator('Location permission changed. Please re-enable location services.', 'warning');
+            }
+        });
     });
+
+    function startTracking() {
+        // Get initial position with a shorter timeout
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                console.log('Initial position received:', position);
+                updateStatusIndicator('Location acquired, tracking started', 'success');
+                updateUserLocation(position, view);
+                
+                // Start continuous tracking
+                watchId = navigator.geolocation.watchPosition(
+                    (pos) => {
+                        console.log('Position update:', pos);
+                        updateUserLocation(pos, view);
+                        
+                        if (edgesData && nodesData && endNodeId) {
+                            updateRouteForPosition(pos, view, edgesData, nodesData, endNodeId);
+                        }
+                    },
+                    (error) => {
+                        console.error('Geolocation error:', error);
+                        handleGeolocationError(error);
+                    },
+                    options
+                );
+            },
+            (error) => {
+                console.error('Initial position error:', error);
+                handleGeolocationError(error);
+            },
+            options
+        );
+    }
 }
+
 function restartTracking() {
     if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
