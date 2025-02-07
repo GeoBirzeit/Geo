@@ -123,7 +123,7 @@ const lonFilter = new KalmanFilter();
 
     // Create the GeoJSON layers
     const buildingsLayer = new GeoJSONLayer({
-        url: "./Building.geojson",
+        url: "./building.geojson",
         renderer: buildingRenderer,
         title: "Buildings"
     });
@@ -583,75 +583,41 @@ function displayUpdatedRoute(path, startPoint, view) {
 }
 
 // Function to start real-time tracking
-function startRealTimeTracking(view, edgesData, nodesData, endNodeId) {
-    console.log('Starting real-time tracking...');
-    
-    // Clear existing tracking if any
-    if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-    }
-
-    userTrackingEnabled = true;
-    const debugOverlay = document.getElementById('debugOverlay') || createDebugOverlay();
-
-    const options = {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-    };
-
-    // Request permission explicitly
-    navigator.permissions.query({ name: 'geolocation' }).then(function(permissionStatus) {
-        debugOverlay.innerHTML += `<br>Location permission: ${permissionStatus.state}`;
-        
-        if (permissionStatus.state === 'granted') {
-            startTracking();
-        } else {
-            updateStatusIndicator('Please enable location access', 'warning');
-        }
-    });
-
-    
-        
-     
-    
-
-    function startTracking() {
-        // Get initial position
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                console.log('Initial position received:', position);
-                updateUserLocation(position, view);
-                
-                // Start continuous tracking
-                watchId = navigator.geolocation.watchPosition(
-                    (pos) => {
-                        console.log('Position update:', pos);
-                        updateUserLocation(pos, view);
-                        
-                        if (edgesData && nodesData && endNodeId) {
-                            updateRouteForPosition(pos, view, edgesData, nodesData, endNodeId);
-                        }
-                    },
-                    (error) => {
-                        console.error('Geolocation error:', error);
-                        debugOverlay.innerHTML += `<br>Error: ${error.message}`;
-                        updateStatusIndicator(`Location error: ${error.message}`, 'error');
-                    },
-                    options
-                );
-            },
-            (error) => {
-                console.error('Initial position error:', error);
-                debugOverlay.innerHTML += `<br>Initial Error: ${error.message}`;
-                updateStatusIndicator(`Initial location error: ${error.message}`, 'error');
-            },
-            options
-        );
-    }
+function checkMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
+function startRealTimeTracking(view, edgesData, nodesData, endNodeId) {
+    const isMobile = checkMobileDevice();
+    console.log('Device type:', isMobile ? 'Mobile' : 'Desktop');
+    
+    // Add mobile-specific options
+    const options = {
+        enableHighAccuracy: true,
+        timeout: isMobile ? 20000 : 10000, // Longer timeout for mobile
+        maximumAge: 0
+    };
+    
+    // Request permissions explicitly
+    navigator.permissions.query({ name: 'geolocation' })
+        .then(function(permissionStatus) {
+            console.log('Permission status:', permissionStatus.state);
+            updateStatusIndicator(`Location permission: ${permissionStatus.state}`, 'info');
+            
+            if (permissionStatus.state === 'granted') {
+                initializeTracking(options);
+            } else if (permissionStatus.state === 'prompt') {
+                updateStatusIndicator('Please allow location access', 'warning');
+                initializeTracking(options);
+            } else {
+                updateStatusIndicator('Location access denied', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Permission check error:', error);
+            updateStatusIndicator('Error checking permissions', 'error');
+        });
+}
 function restartTracking() {
     if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
