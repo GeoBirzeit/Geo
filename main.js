@@ -222,6 +222,94 @@ const lonFilter = new KalmanFilter();
         view.goTo(camera);
     };
 
+
+    function createLegend(view) {
+        const legendContainer = document.createElement('div');
+        legendContainer.id = 'mapLegend';
+        legendContainer.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            max-width: 250px;
+            z-index: 1000;
+        `;
+    
+        const legendEntries = [
+            {
+                layer: buildingsLayer,
+                name: 'Buildings',
+                color: 'rgba(79, 129, 189, 0.5)',
+                type: 'polygon'
+            },
+            {
+                layer: edgesLayer,
+                name: 'Edges',
+                color: 'rgba(255, 0, 0, 0.8)',
+                type: 'line'
+            },
+            {
+                layer: nodesLayer,
+                name: 'Nodes',
+                color: 'rgba(0, 255, 0, 1)',
+                type: 'point'
+            }
+        ];
+    
+        legendEntries.forEach(entry => {
+            const legendItem = document.createElement('div');
+            legendItem.style.cssText = `
+                display: flex;
+                align-items: center;
+                margin-bottom: 10px;
+            `;
+    
+            // Create visibility toggle
+            const toggleSwitch = document.createElement('input');
+            toggleSwitch.type = 'checkbox';
+            toggleSwitch.checked = true;
+            toggleSwitch.style.cssText = `
+                margin-right: 10px;
+                width: 18px;
+                height: 18px;
+            `;
+    
+            // Add toggle functionality
+            toggleSwitch.addEventListener('change', (e) => {
+                entry.layer.visible = e.target.checked;
+            });
+    
+            // Create symbol
+            const symbolEl = document.createElement('div');
+            symbolEl.style.cssText = `
+                width: 30px;
+                height: 30px;
+                margin-right: 10px;
+                background-color: ${entry.color};
+                ${entry.type === 'line' ? 'height: 4px;' : ''}
+                ${entry.type === 'point' ? 'border-radius: 50%;' : ''}
+            `;
+    
+            // Create label
+            const labelEl = document.createElement('span');
+            labelEl.textContent = entry.name;
+            labelEl.style.fontFamily = 'Arial, sans-serif';
+            labelEl.style.fontSize = '14px';
+    
+            legendItem.appendChild(toggleSwitch);
+            legendItem.appendChild(symbolEl);
+            legendItem.appendChild(labelEl);
+            legendContainer.appendChild(legendItem);
+        });
+    
+        // Existing drag functionality remains the same as in previous implementation
+    
+        document.body.appendChild(legendContainer);
+        return legendContainer;
+    }
     // Zoom to layer extent when loaded
     view.when(() => {
         buildingsLayer.when(() => {
@@ -229,6 +317,9 @@ const lonFilter = new KalmanFilter();
                 target: buildingsLayer.fullExtent,
                 tilt: 45
             });
+    
+            // Create legend after layer is loaded
+            createLegend(view);
         }).catch(err => {
             console.error("Error loading buildings layer:", err);
         });
