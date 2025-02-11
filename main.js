@@ -1039,18 +1039,29 @@ function displayRoute(path) {
         `;
 
         const geoButton = document.createElement('button');
-        geoButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM8.547 4.505a8.25 8.25 0 1110.948 10.948 8.25 8.25 0 01-10.948-10.948zM12 15a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" /></svg>';
-        geoButton.style.cssText = `
-            padding: 8px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        `;
+geoButton.innerHTML = `
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7z"/>
+    <circle cx="12" cy="9" r="3"/>
+  </svg>
+`;
+
+geoButton.style.cssText = `
+    padding: 8px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+`;
+
+geoButton.querySelector('svg').style.cssText = `
+    width: 24px;
+    height: 24px;
+`;
     
         // Create end node input and datalist
         const endLabel = document.createElement('label');
@@ -1217,6 +1228,11 @@ function displayRoute(path) {
         });
     });
     
+
+
+
+
+
 
     // testing user location mode
 
